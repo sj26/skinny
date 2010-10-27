@@ -13,6 +13,10 @@ More details coming soon.
 More comprehensive examples will be coming soon. Here's a really
 simple, not-yet-optimised example I'm using at the moment:
 
+    class Sinatra::Request
+      include Skinny::RequestHelpers
+    end
+    
     module MailCatcher
       class Web < Sinatra::Base
         get '/messages' do
