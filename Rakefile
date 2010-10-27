@@ -12,6 +12,9 @@ begin
     gem.email = "sj26@sj26.com"
     gem.homepage = "http://github.com/sj26/skinny"
     gem.authors = ["Samuel Cochran"]
+    
+    gem.add_dependency 'eventmachine'
+    gem.add_dependency 'thin'
   end
   Jeweler::GemcutterTasks.new
 rescue LoadError
