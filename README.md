@@ -4,7 +4,7 @@ Simple, upgradable Thin WebSockets.
 
 I wanted to be able to upgrade a plain old Rack request to a proper
 WebSocket. The easiest way seemed to use the oh-so-nice-and-clean
-Thin with a new pair of skinnies.
+[Thin][thin] with a new pair of skinnies.
 
 More details coming soon.
 
@@ -37,10 +37,10 @@ requests can be recycled.
 
 ## TODO
 
-* Nicer
-* Documentation
-* Tests
-* Make more generic for alternate server implementations?
+ * Nicer
+ * Documentation
+ * Tests
+ * Make more generic for alternate server implementations?
 
 ## Copyright
 
@@ -48,4 +48,7 @@ Copyright (c) 2010 Samuel Cochran. See LICENSE for details.
 
 ## Wear Them
 
-(Do you?)[http://www.shaunoakes.com/images/skinny-jeans-no.jpg]
+[Do you?][jeans]
+
+[thin]: http://code.macournoyer.com/thin/
+[jeans]: http://www.shaunoakes.com/images/skinny-jeans-no.jpg
