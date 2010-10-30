@@ -40,19 +40,23 @@ module Skinny
 
   class Websocket < EventMachine::Connection
     include Callbacks
+    include Thin::Logging
   
     define_callback :on_open, :on_start, :on_handshake, :on_message, :on_error, :on_finish, :on_close
 
     # 4mb is almost too generous, imho.
     MAX_BUFFER_LENGTH = 2 ** 32
-  
+    
+    # Create a new WebSocket from a Thin::Request environment
     def self.from_env env, options={}
-      # Steal the connection
+      # Pull the connection out of the env
       thin_connection = env[Thin::Request::ASYNC_CALLBACK].receiver
+      # Steal the IO
+      io = thin_connection.detach
       # We have all the events now, muahaha
-      EM.attach(thin_connection.detach, self, env, options)
+      EM.attach(io, self, env, options)
     end
-  
+    
     def initialize env, options={}
       @env = env.dup
       @buffer = ''
@@ -62,8 +66,14 @@ module Skinny
         send name, &options.delete(name) if options.has_key?(name)
       end
       raise ArgumentError, "Unknown options: #{options.inspect}" unless options.empty?
-      
+    end
+
+    # Connection is now open    
+    def post_init
       EM.next_tick { callback :on_open, self }
+      @state = :open
+    rescue
+      error! "Error opening connection"
     end
   
     # Return an async response -- stops Thin doing anything with connection.
@@ -74,6 +84,7 @@ module Skinny
     # Arrayify self into a response tuple
     alias :to_a :response
 
+    # Start the websocket connection
     def start!
       # Steal any remaining data from rack.input
       @buffer = @env[Thin::Request::RACK_INPUT].read + @buffer
@@ -82,29 +93,37 @@ module Skinny
       @env.delete Thin::Request::RACK_INPUT
       @env.delete Thin::Request::ASYNC_CALLBACK
       @env.delete Thin::Request::ASYNC_CLOSE
+
+      # Pull out the details we care about
+      @origin ||= @env['HTTP_ORIGIN']
+      @location ||= "ws#{secure? ? 's' : ''}://#{@env['HTTP_HOST']}#{@env['REQUEST_PATH']}"
+      @protocol ||= @env['HTTP_SEC_WEBSOCKET_PROTOCOL']
     
       EM.next_tick { callback :on_start, self }
     
       # Queue up the actual handshake
       EM.next_tick method :handshake!
+      
+      @state = :started
     
       # Return self so we can be used as a response
       self
     rescue
-      error! $!
+      error! "Error starting connection"
     end
+    
+    attr_reader :env
+    attr_accessor :origin, :location, :protocol
   
-    def protocol
-      @env['HTTP_SEC_WEBSOCKET_PROTOCOL']
+    def secure?
+      @env['HTTPS'] == 'on' or
+      @env['HTTP_X_FORWARDED_PROTO'] == 'https' or
+      @env['rack.url_scheme'] == 'https'
     end
-  
-    def protocol= value
-      @env['HTTP_SEC_WEBSOCKET_PROTOCOL'] = value
-    end
-  
+
     [1, 2].each do |i|
-      define_method "key#{i}" do
-        key = @env["HTTP_SEC_WEBSOCKET_KEY#{i}"]
+      define_method :"key#{i}" do
+        key = env["HTTP_SEC_WEBSOCKET_KEY#{i}"]
         key.scan(/[0-9]/).join.to_i / key.count(' ')
       end
     end
@@ -114,7 +133,7 @@ module Skinny
     end
   
     def challenge?
-      @env.has_key? 'HTTP_SEC_WEBSOCKET_KEY1'
+      env.has_key? 'HTTP_SEC_WEBSOCKET_KEY1'
     end
   
     def challenge
@@ -125,38 +144,40 @@ module Skinny
       Digest::MD5.digest(challenge)
     end
   
+    # Generate the handshake
     def handshake
       "HTTP/1.1 101 Web Socket Protocol Handshake\r\n" +
       "Connection: Upgrade\r\n" +
       "Upgrade: WebSocket\r\n" +
-      "Sec-WebSocket-Location: ws#{@env['rack.url_scheme'] == 'https' ? 's' : ''}://#{@env['HTTP_HOST']}#{@env['REQUEST_PATH']}\r\n" +
-      "Sec-WebSocket-Origin: #{@env['HTTP_ORIGIN']}\r\n" +
-      ("Sec-WebSocket-Protocol: #{@env['HTTP_SEC_WEBSOCKET_PROTOCOL']}\r\n" if @env['HTTP_SEC_WEBSOCKET_PROTOCOL']) +
+      "Sec-WebSocket-Location: #{location}\r\n" +
+      "Sec-WebSocket-Origin: #{origin}\r\n" +
+      (protocol ? "Sec-WebSocket-Protocol: #{protocol}\r\n" : "") +
       "\r\n" +
       "#{challenge_response}"
     end
-  
+    
     def handshake!
       [key1, key2].each { |key| raise WebSocketProtocolError, "Invalid key: #{key}" if key >= 2**32 }
+      
       # XXX: Should we wait for 8 bytes?
       raise WebSocketProtocolError, "Invalid challenge: #{key3}" if key3.length < 8
       
       send_data handshake
-      @handshook = true
+      @state = :handshook
     
       EM.next_tick { callback :on_handshake, self }
     rescue
-      error! $!
+      error! "Error during connection handshake"
     end
-  
+    
     def receive_data data
       @buffer += data
     
-      EM.next_tick { process_frame } if @handshook
+      process_frame if @handshook
     rescue
-      error! $!
+      error! "Error while receiving data"
     end
-  
+    
     def process_frame
       if @buffer.length >= 1
         if @buffer[0] == "\x00"
@@ -166,7 +187,7 @@ module Skinny
           
             EM.next_tick { receive_message message }
           elsif @buffer.length > MAX_BUFFER_LENGTH
-            error! "Maximum buffer length (#{MAX_BUFFER_LENGTH}) exceeded: #{@buffer.length}"
+            raise WebSocketProtocolError, "Maximum buffer length (#{MAX_BUFFER_LENGTH}) exceeded: #{@buffer.length}"
           end
         elsif @buffer[0] == "\xff"
           if @buffer.length > 1
@@ -175,11 +196,11 @@ module Skinny
         
               EM.next_tick { finish! }
             else
-              error! "Incorrect finish frame length: #{@buffer[1].inspect}"
+              raise WebSocketProtocolError, "Incorrect finish frame length: #{@buffer[1].inspect}"
             end
           end
         else
-          error! "Unknown frame type: #{@buffer[0].inspect}"
+          raise WebSocketProtocolError, "Unknown frame type: #{@buffer[0].inspect}"
         end
       end
     end
@@ -196,42 +217,56 @@ module Skinny
       send_data frame_message(message)
     end
   
-    def error! message=nil
-      EM.next_tick { callback :on_error, self }
-      EM.next_tick { finish! } unless @finished
-      # XXX: Log or something
-      puts "Websocket Error: #{$!}"
-    end
-  
+    # Finish the connection read for closing
     def finish!
       send_data "\xff\x00"
-      close_connection_after_writing
-      @finished = true
     
       EM.next_tick { callback :on_finish, self }
+      EM.next_tick { close_connection_after_writing }
+
+      @state = :finished
     rescue
-      error! $!
+      error! "Error finishing WebSocket connection"
     end
-  
+    
+    # Make sure we call the on_close callbacks when the connection
+    # disappears
     def unbind
       EM.next_tick { callback :on_close, self }
+      @state = :closed
+    rescue
+      error! "Error closing WebSocket connection"
+    end
+    
+    def error! message=nil
+      log message unless message.nil?
+      log_error
+      
+      # Allow error messages to be handled, maybe
+      EM.next_tick { callback :on_error, self }
+      
+      # Try to finish and close nicely.
+      EM.next_tick { finish! } unless [:finished, :closed, :error].include? @state
+
+      @state = :error
     end
   end
 
-  module RequestHelpers
+  module Helpers
     def websocket?
-      @env['HTTP_CONNECTION'] == 'Upgrade' && @env['HTTP_UPGRADE'] == 'WebSocket'
+      env['HTTP_CONNECTION'] == 'Upgrade' && env['HTTP_UPGRADE'] == 'WebSocket'
     end
   
-    def websocket(options={})
-      @env['skinny.websocket'] ||= begin
+    def websocket(options={}, &block)
+      env['skinny.websocket'] ||= begin
         raise RuntimerError, "Not a WebSocket request" unless websocket?
-        Websocket.from_env(@env, options)
+        options[:on_message] = block if block_given?
+        Websocket.from_env(env, options)
       end
     end
   
-    def websocket!(options={})
-      websocket(options).start!
+    def websocket!(options={}, &block)
+      websocket(options, &block).start!
     end
   end
 end

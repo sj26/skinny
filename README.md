@@ -14,7 +14,7 @@ More comprehensive examples will be coming soon. Here's a really
 simple, not-yet-optimised example I'm using at the moment:
 
     class Sinatra::Request
-      include Skinny::RequestHelpers
+      include Skinny::Helpers
     end
     
     module MailCatcher
