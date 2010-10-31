@@ -188,6 +188,9 @@ module Skinny
             message = frame[1..-2]
           
             EM.next_tick { receive_message message }
+            
+            # There might be more frames to process
+            EM.next_tick { process_frame }
           elsif @buffer.length > MAX_BUFFER_LENGTH
             raise WebSocketProtocolError, "Maximum buffer length (#{MAX_BUFFER_LENGTH}) exceeded: #{@buffer.length}"
           end
