@@ -175,7 +175,7 @@ module Skinny
     def receive_data data
       @buffer += data
     
-      process_frame if @handshook
+      EM.next_tick { process_frame } if @state == :handshook
     rescue
       error! "Error while receiving WebSocket data"
     end
