@@ -37,7 +37,9 @@ module Skinny
 
   class WebSocketError < RuntimeError; end
   class WebSocketProtocolError < WebSocketError; end
-
+  
+  # We need to be really careful not to throw an exception too high
+  # or we'll kill the server.
   class Websocket < EventMachine::Connection
     include Callbacks
     include Thin::Logging
@@ -70,7 +72,7 @@ module Skinny
 
     # Connection is now open    
     def post_init
-      EM.next_tick { callback :on_open, self }
+      EM.next_tick { callback :on_open, self rescue error! "Error in open callback" }
       @state = :open
     rescue
       error! "Error opening connection"
@@ -99,7 +101,7 @@ module Skinny
       @location ||= "ws#{secure? ? 's' : ''}://#{@env['HTTP_HOST']}#{@env['REQUEST_PATH']}"
       @protocol ||= @env['HTTP_SEC_WEBSOCKET_PROTOCOL']
     
-      EM.next_tick { callback :on_start, self }
+      EM.next_tick { callback :on_start, self rescue error! "Error in start callback" }
     
       # Queue up the actual handshake
       EM.next_tick method :handshake!
@@ -165,9 +167,9 @@ module Skinny
       send_data handshake
       @state = :handshook
     
-      EM.next_tick { callback :on_handshake, self }
+      EM.next_tick { callback :on_handshake, self rescue error! "Error in handshake callback" }
     rescue
-      error! "Error during connection handshake"
+      error! "Error during WebSocket connection handshake"
     end
     
     def receive_data data
@@ -175,7 +177,7 @@ module Skinny
     
       process_frame if @handshook
     rescue
-      error! "Error while receiving data"
+      error! "Error while receiving WebSocket data"
     end
     
     def process_frame
@@ -203,10 +205,12 @@ module Skinny
           raise WebSocketProtocolError, "Unknown frame type: #{@buffer[0].inspect}"
         end
       end
+    rescue
+      error! "Error while processing WebSocket frames"
     end
   
     def receive_message message
-      EM.next_tick { callback :on_message, self, message }
+      EM.next_tick { callback :on_message, self, message rescue error! "Error in message callback" }
     end
   
     def frame_message message
@@ -221,7 +225,7 @@ module Skinny
     def finish!
       send_data "\xff\x00"
     
-      EM.next_tick { callback :on_finish, self }
+      EM.next_tick { callback :on_finish, self rescue error! "Error in finish callback" }
       EM.next_tick { close_connection_after_writing }
 
       @state = :finished
@@ -232,7 +236,7 @@ module Skinny
     # Make sure we call the on_close callbacks when the connection
     # disappears
     def unbind
-      EM.next_tick { callback :on_close, self }
+      EM.next_tick { callback :on_close, self rescue error! "Error in close callback" }
       @state = :closed
     rescue
       error! "Error closing WebSocket connection"
@@ -243,7 +247,7 @@ module Skinny
       log_error
       
       # Allow error messages to be handled, maybe
-      EM.next_tick { callback :on_error, self }
+      EM.next_tick { callback :on_error, self rescue error! "Error in error callback" }
       
       # Try to finish and close nicely.
       EM.next_tick { finish! } unless [:finished, :closed, :error].include? @state
