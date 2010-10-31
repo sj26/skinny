@@ -182,7 +182,7 @@ module Skinny
     
     def process_frame
       if @buffer.length >= 1
-        if @buffer[0] < 0x7f
+        if @buffer[0].ord < 0x7f
           if ending = @buffer.index("\xff")
             frame = @buffer.slice! 0..ending
             message = frame[1..-2]
@@ -194,9 +194,9 @@ module Skinny
           elsif @buffer.length > MAX_BUFFER_LENGTH
             raise WebSocketProtocolError, "Maximum buffer length (#{MAX_BUFFER_LENGTH}) exceeded: #{@buffer.length}"
           end
-        elsif @buffer[0] == 0xff
+        elsif @buffer[0] == "\xff"
           if @buffer.length > 1
-            if @buffer[1] == 0x00
+            if @buffer[1] == "\x00"
               @buffer.slice! 0..1
         
               EM.next_tick { finish! }
