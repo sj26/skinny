@@ -245,16 +245,20 @@ module Skinny
       error! "Error closing WebSocket connection"
     end
     
-    def error! message=nil
+    def error! message=nil, callback=true
       log message unless message.nil?
-      log_error
+      log_error # Logs the exception itself
       
       # Allow error messages to be handled, maybe
-      EM.next_tick { callback :on_error, self rescue error! "Error in error callback" }
+      # but only if this error was not caused by the error callback
+      if callback
+        EM.next_tick { callback :on_error, self rescue error! "Error in error callback", true }
+      end
       
       # Try to finish and close nicely.
       EM.next_tick { finish! } unless [:finished, :closed, :error].include? @state
-
+      
+      # We're closed!
       @state = :error
     end
   end
