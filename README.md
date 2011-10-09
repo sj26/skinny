@@ -46,6 +46,10 @@ requests can be recycled.
  * Tests
  * Make more generic for alternate server implementations?
 
+## Thanks
+
+The latest WebSocket draft support is adapted from https://github.com/gimite/web-socket-ruby -- thank you!
+
 ## Copyright
 
 Copyright (c) 2010 Samuel Cochran. See LICENSE for details.
