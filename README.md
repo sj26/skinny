@@ -16,7 +16,7 @@ simple, not-yet-optimised example I'm using at the moment:
     class Sinatra::Request
       include Skinny::Helpers
     end
-    
+
     module MailCatcher
       class Web < Sinatra::Base
         get '/messages' do
@@ -34,7 +34,7 @@ simple, not-yet-optimised example I'm using at the moment:
         end
       end
     end
-  
+
 This syntax will probably get cleaned up. I would like to build a
 nice Sinatra handler with DSL with unbound handlers so Sinatra
 requests can be recycled.

@@ -1,33 +1,32 @@
 require 'rubygems'
-require 'rake'
 
-begin
-  require 'jeweler'
-  Jeweler::Tasks.new do |gem|
-    gem.name = "skinny"
-    gem.summary = %Q{Thin WebSockets}
-    gem.description = <<-EOD
-      Simple, upgradable WebSockets for Thin.
-    EOD
-    gem.email = "sj26@sj26.com"
-    gem.homepage = "http://github.com/sj26/skinny"
-    gem.authors = ["Samuel Cochran"]
-    
-    gem.add_dependency 'eventmachine'
-    gem.add_dependency 'thin'
-  end
-  Jeweler::GemcutterTasks.new
-rescue LoadError
-  puts "Jeweler (or a dependency) not available. Install it with: gem install jeweler"
-end
+version_file = File.expand_path __FILE__ + '/../VERSION'
+version = File.read(version_file).strip
 
-require 'rake/rdoctask'
-Rake::RDocTask.new do |rdoc|
-  version = File.exist?('VERSION') ? File.read('VERSION') : ""
+spec_file = File.expand_path __FILE__ + '/../skinny.gemspec'
+spec = Gem::Specification.load spec_file
 
+require 'rdoc/task'
+RDoc::Task.new :rdoc => "rdoc",
+    :clobber_rdoc => "rdoc:clean",
+    :rerdoc => "rdoc:force" do |rdoc|
+  rdoc.title = "Skinny #{version}"
   rdoc.rdoc_dir = 'rdoc'
-  rdoc.title = "skinny #{version}"
-  rdoc.rdoc_files.include('README*')
-  rdoc.rdoc_files.include('lib/*.rb')
-  rdoc.rdoc_files.include('lib/**/*.rb')
+  rdoc.main = 'README.md'
+  rdoc.rdoc_files.include 'lib/**/*.rb'
 end
+
+desc "Package as Gem"
+task "package:gem" do
+  builder = Gem::Builder.new spec
+  builder.build
+end
+
+task "package" => ["package:gem"]
+
+desc "Release Gem to RubyGems"
+task "release:gem" do
+  %x[gem push mailcatcher-#{version}.gem]
+end
+
+task "release" => ["package", "release:gem"]
