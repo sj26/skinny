@@ -26,7 +26,7 @@ task "package" => ["package:gem"]
 
 desc "Release Gem to RubyGems"
 task "release:gem" do
-  %x[gem push mailcatcher-#{version}.gem]
+  %x[gem push skinny-#{version}.gem]
 end
 
 task "release" => ["package", "release:gem"]
