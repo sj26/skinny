@@ -420,13 +420,20 @@ module Skinny
     end
   end
 
+  CONNECTION = 'HTTP_CONNECTION'.freeze
+  UPGRADE = 'HTTP_UPGRADE'.freeze
+  SKINNY_WEBSOCKET = 'skinny.websocket'.freeze
+
+  UPGRADE_REGEXP = /\bupgrade\b/i.freeze
+  WEBSOCKET_REGEXP = /\bwebsocket\b/i.freeze
+
   module Helpers
     def websocket?
-      env['HTTP_CONNECTION'].downcase == 'upgrade' && env['HTTP_UPGRADE'].downcase == 'websocket'
+      env[CONNECTION] =~ UPGRADE_REGEXP && env[UPGRADE] =~ WEBSOCKET_REGEXP
     end
 
     def websocket options={}, &block
-      env['skinny.websocket'] ||= begin
+      env[SKINNY_WEBSOCKET] ||= begin
         raise RuntimerError, "Not a WebSocket request" unless websocket?
         options[:on_message] = block if block_given?
         Websocket.from_env(env, options)
