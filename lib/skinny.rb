@@ -64,7 +64,9 @@ module Skinny
       # Pull the connection out of the env
       thin_connection = env[Thin::Request::ASYNC_CALLBACK].receiver
       # Steal the IO
-      io = thin_connection.detach
+      fd = thin_connection.detach
+      # EventMachine 1.0.0 needs this to be closable
+      io = IO.for_fd(fd) unless fd.respond_to? :close
       # We have all the events now, muahaha
       EM.attach(io, self, env, options)
     end
