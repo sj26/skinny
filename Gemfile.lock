@@ -1,0 +1,30 @@
+PATH
+  remote: .
+  specs:
+    skinny (0.2.4)
+      eventmachine (~> 1.0.0)
+      thin (~> 1.7)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    daemons (1.2.4)
+    eventmachine (1.0.9.1)
+    rack (2.0.3)
+    rake (12.1.0)
+    rdoc (5.1.0)
+    thin (1.7.2)
+      daemons (~> 1.0, >= 1.0.9)
+      eventmachine (~> 1.0, >= 1.0.4)
+      rack (>= 1, < 3)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rake
+  rdoc
+  skinny!
+
+BUNDLED WITH
+   1.15.4
