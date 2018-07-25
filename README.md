@@ -13,27 +13,29 @@ More details coming soon.
 More comprehensive examples will be coming soon. Here's a really
 simple, not-yet-optimised example I'm using at the moment:
 
-    class Sinatra::Request
-      include Skinny::Helpers
-    end
+```ruby
+class Sinatra::Request
+  include Skinny::Helpers
+end
 
-    module MailCatcher
-      class Web < Sinatra::Base
-        get '/messages' do
-          if request.websocket?
-            request.websocket! :protocol => "MailCatcher 0.2 Message Push",
-              :on_start => proc do |websocket|
-                subscription = MailCatcher::Events::MessageAdded.subscribe { |message| websocket.send_message message.to_json }
-                websocket.on_close do |websocket|
-                  MailCatcher::Events::MessageAdded.unsubscribe subscription
-                end
-              end
-          else
-            MailCatcher::Mail.messages.to_json
+module MailCatcher
+  class Web < Sinatra::Base
+    get '/messages' do
+      if request.websocket?
+        request.websocket! :protocol => "MailCatcher 0.2 Message Push",
+          :on_start => proc do |websocket|
+            subscription = MailCatcher::Events::MessageAdded.subscribe { |message| websocket.send_message message.to_json }
+            websocket.on_close do |websocket|
+              MailCatcher::Events::MessageAdded.unsubscribe subscription
+            end
           end
-        end
+      else
+        MailCatcher::Mail.messages.to_json
       end
     end
+  end
+end
+```
 
 This syntax will probably get cleaned up. I would like to build a
 nice Sinatra handler with DSL with unbound handlers so Sinatra
