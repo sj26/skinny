@@ -19,11 +19,11 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
   s.extra_rdoc_files = ["README.md", "LICENSE"]
 
-  s.required_ruby_version = ">= 1.8.7"
+  s.required_ruby_version = ">= 2.0.0"
 
-  s.add_dependency "eventmachine", "~> 1.0.0"
-  s.add_dependency "thin", ">= 1.5", "< 1.7"
+  s.add_dependency "eventmachine", "~> 1.2"
+  s.add_dependency "thin", "~> 1.8"
 
-  s.add_development_dependency "rake"
-  s.add_development_dependency "rdoc"
+  s.add_development_dependency "rake", "~> 13"
+  s.add_development_dependency "rdoc", "~> 6"
 end
